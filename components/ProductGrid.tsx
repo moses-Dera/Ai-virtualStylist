@@ -1,16 +1,20 @@
 import React from 'react';
 import { Product, ProductCategory } from '../types';
 import ProductCard from './ProductCard';
+import { UploadCloudIcon } from './icons/UploadCloudIcon';
+import { ShoppingBagIcon } from './icons/ShoppingBagIcon';
 
 interface ProductGridProps {
   products: Product[];
-  categories: ProductCategory[];
-  selectedCategory: ProductCategory | 'All';
-  onSelectCategory: (category: ProductCategory | 'All') => void;
+  categories: (ProductCategory | 'My Closet')[];
+  selectedCategory: ProductCategory | 'All' | 'My Closet';
+  onSelectCategory: (category: ProductCategory | 'All' | 'My Closet') => void;
   onTryOn: (product: Product) => void;
   onViewDetails: (product: Product) => void;
   isLoading: boolean;
   error: string | null;
+  onOpenUploadModal: () => void;
+  onOpenBrowseStoresModal: () => void;
 }
 
 const ProductCardSkeleton: React.FC = () => (
@@ -35,9 +39,11 @@ const ProductGrid: React.FC<ProductGridProps> = ({
   onViewDetails,
   isLoading,
   error,
+  onOpenUploadModal,
+  onOpenBrowseStoresModal,
 }) => {
   const renderContent = () => {
-    if (isLoading) {
+    if (isLoading && products.length === 0) {
       return Array.from({ length: 8 }).map((_, index) => <ProductCardSkeleton key={index} />);
     }
 
@@ -50,11 +56,14 @@ const ProductGrid: React.FC<ProductGridProps> = ({
       );
     }
 
-    if (products.length === 0) {
+    if (products.length === 0 && !isLoading) {
+        const message = selectedCategory === 'My Closet'
+        ? "Your closet is empty. Upload your own clothes or browse stores to add items!"
+        : "No products found in this category.";
       return (
         <div className="col-span-full text-center py-16 px-4">
           <h3 className="text-xl font-semibold text-gray-700">No Products Found</h3>
-          <p className="text-gray-500 mt-2">Try selecting a different category or view all items.</p>
+          <p className="text-gray-500 mt-2">{message}</p>
         </div>
       );
     }
@@ -71,12 +80,30 @@ const ProductGrid: React.FC<ProductGridProps> = ({
 
   return (
     <div className="bg-white p-4 sm:p-6 rounded-xl shadow-lg">
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold text-gray-800 mb-1">Explore Collection</h2>
-        <p className="text-gray-500">Select an item to see details or try it on instantly.</p>
+      <div className="mb-6 flex flex-wrap justify-between items-start">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-800 mb-1">Explore Collection</h2>
+          <p className="text-gray-500">Select an item to see details or try it on instantly.</p>
+        </div>
+        <div className="flex items-center gap-2 mt-4 sm:mt-0">
+          <button
+            onClick={onOpenBrowseStoresModal}
+            className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-indigo-600 border border-indigo-300 rounded-full hover:bg-indigo-50 transition-colors"
+          >
+            <ShoppingBagIcon className="w-5 h-5" />
+            Browse Stores
+          </button>
+          <button
+            onClick={onOpenUploadModal}
+            className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-indigo-600 border border-indigo-300 rounded-full hover:bg-indigo-50 transition-colors"
+          >
+            <UploadCloudIcon className="w-5 h-5" />
+            Upload
+          </button>
+        </div>
       </div>
       
-      <div className="flex flex-wrap gap-2 mb-6 border-b border-gray-200 pb-4">
+      <div className="flex flex-wrap items-center gap-2 mb-6 border-b border-gray-200 pb-4">
         <button
           onClick={() => onSelectCategory('All')}
           className={`px-4 py-2 text-sm font-medium rounded-full transition-all duration-200 ${

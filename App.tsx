@@ -7,6 +7,8 @@ import VirtualTryOn from './components/VirtualTryOn';
 import FashionAssistant from './components/FashionAssistant';
 import UserProfileModal from './components/UserProfileModal';
 import ProductDetailModal from './components/ProductDetailModal';
+import UploadClothingModal from './components/UploadClothingModal';
+import BrowseStoresModal from './components/BrowseStoresModal';
 import { fetchProducts } from './services/productService';
 import { generateTryOnImage } from './services/geminiService';
 
@@ -33,10 +35,12 @@ const App: React.FC = () => {
   const [tryOnResultImage, setTryOnResultImage] = useState<string | null>(null);
   const [isGeneratingTryOn, setIsGeneratingTryOn] = useState<boolean>(false);
 
-  const [selectedCategory, setSelectedCategory] = useState<ProductCategory | 'All'>('All');
+  const [selectedCategory, setSelectedCategory] = useState<ProductCategory | 'All' | 'My Closet'>('All');
   const [isProfileModalOpen, setProfileModalOpen] = useState<boolean>(false);
   const [isAssistantOpen, setAssistantOpen] = useState<boolean>(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [isUploadModalOpen, setUploadModalOpen] = useState<boolean>(false);
+  const [isBrowseStoresModalOpen, setBrowseStoresModalOpen] = useState<boolean>(false);
 
   useEffect(() => {
     const loadProducts = async () => {
@@ -54,6 +58,41 @@ const App: React.FC = () => {
     };
     loadProducts();
   }, []);
+  
+  const handleAddCustomProduct = useCallback((file: File, category: ProductCategory, name: string) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+        const newProduct: Product = {
+            id: Date.now() * -1, // Negative timestamp for unique ID
+            name: name || `My ${category}`,
+            category,
+            price: 0,
+            imageUrl: reader.result as string,
+            styleKeywords: ['custom', 'user-upload'],
+            isCustom: true,
+        };
+        setProducts(prev => [newProduct, ...prev]);
+        setUploadModalOpen(false);
+        setSelectedCategory('My Closet');
+    };
+    reader.onerror = () => {
+      alert("Sorry, there was an error reading that file.");
+    }
+    reader.readAsDataURL(file);
+  }, []);
+
+  const handleAddItemFromStore = useCallback((product: Product) => {
+    // Create a copy so we don't mutate the original product in the main list
+    const newItem: Product = {
+      ...product,
+      id: product.id + Math.random() * 1000, // Make ID unique to avoid key conflicts
+      isCustom: true,
+      styleKeywords: [...product.styleKeywords, 'imported'],
+    };
+    setProducts(prev => [newItem, ...prev]);
+    // Optional: a little toast notification could be nice here in a real app
+  }, []);
+
 
   const handleTryOn = useCallback(async (product: Product) => {
     if (!userProfile.userImage) {
@@ -91,8 +130,10 @@ const App: React.FC = () => {
   }, []);
 
   const filteredProducts = selectedCategory === 'All'
-    ? products
-    : products.filter(p => p.category === selectedCategory);
+    ? products.filter(p => !p.isCustom)
+    : selectedCategory === 'My Closet'
+    ? products.filter(p => p.isCustom)
+    : products.filter(p => p.category === selectedCategory && !p.isCustom);
 
   return (
     <div className="min-h-screen bg-gray-100 font-sans">
@@ -105,13 +146,15 @@ const App: React.FC = () => {
         <div className="w-full lg:w-3/5 xl:w-2/3 order-2 lg:order-1">
           <ProductGrid
             products={filteredProducts}
-            categories={CATEGORIES}
+            categories={[...CATEGORIES, 'My Closet']}
             selectedCategory={selectedCategory}
             onSelectCategory={setSelectedCategory}
             onTryOn={handleTryOn}
             onViewDetails={setSelectedProduct}
             isLoading={isLoading}
             error={error}
+            onOpenUploadModal={() => setUploadModalOpen(true)}
+            onOpenBrowseStoresModal={() => setBrowseStoresModalOpen(true)}
           />
         </div>
         {/* Virtual Try-On - Sidebar */}
@@ -140,6 +183,24 @@ const App: React.FC = () => {
           userProfile={userProfile}
           onClose={() => setSelectedProduct(null)}
           onTryOn={handleTryOn}
+        />
+      )}
+
+      {isUploadModalOpen && (
+        <UploadClothingModal 
+            isOpen={isUploadModalOpen}
+            onClose={() => setUploadModalOpen(false)}
+            onUpload={handleAddCustomProduct}
+        />
+      )}
+      
+      {isBrowseStoresModalOpen && (
+        <BrowseStoresModal 
+            isOpen={isBrowseStoresModalOpen}
+            onClose={() => setBrowseStoresModalOpen(false)}
+            onAddItem={handleAddItemFromStore}
+            allProducts={products.filter(p => !p.isCustom)} // Pass only non-custom products
+            isLoading={isLoading}
         />
       )}
 

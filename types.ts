@@ -9,6 +9,7 @@ export interface Product {
   price: number;
   imageUrl: string; // Used for both display and try-on generation
   styleKeywords: string[];
+  isCustom?: boolean;
 }
 
 export interface UserProfile {
@@ -31,16 +32,6 @@ export interface ChatMessage {
   text: string;
 }
 
-// Add a declaration for the 'model-viewer' custom element
-declare global {
-    namespace JSX {
-        interface IntrinsicElements {
-            'model-viewer': React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement> & {
-                src?: string;
-                alt?: string;
-                'camera-controls'?: boolean;
-                'auto-rotate'?: boolean;
-            };
-        }
-    }
-}
+// FIX: Removed the global JSX.IntrinsicElements declaration that was here.
+// It was overriding React's default types for all HTML elements, causing widespread errors.
+// The 'model-viewer' custom element it defined was not being used.

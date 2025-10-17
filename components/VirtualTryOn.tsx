@@ -2,6 +2,7 @@ import React from 'react';
 import { Outfit } from '../types';
 import { CloseIcon } from './icons/CloseIcon';
 import { SparklesIcon } from './icons/SparklesIcon';
+import { DownloadIcon } from './icons/DownloadIcon';
 
 interface VirtualTryOnProps {
   outfit: Outfit;
@@ -19,6 +20,16 @@ const VirtualTryOn: React.FC<VirtualTryOnProps> = ({ outfit, userImage, onClearO
     .filter(Boolean);
 
   const displayImage = generatedImage || userImage;
+
+  const handleSaveImage = () => {
+    if (!generatedImage) return;
+    const link = document.createElement('a');
+    link.href = generatedImage;
+    link.download = `ai-stylist-look-${Date.now()}.png`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   return (
     <div className="bg-white rounded-xl shadow-lg p-4 flex flex-col h-full lg:max-h-[calc(100vh-7rem)]">
@@ -42,11 +53,19 @@ const VirtualTryOn: React.FC<VirtualTryOnProps> = ({ outfit, userImage, onClearO
         <div className="mt-4 flex-shrink-0 overflow-y-auto">
             <div className="flex justify-between items-center mb-2">
                 <h3 className="font-semibold text-gray-700">Current Outfit:</h3>
-                {wornItems.length > 0 && (
-                    <button onClick={onClearOutfit} className="text-sm font-medium text-indigo-600 hover:text-indigo-800">
-                        Clear Outfit
+                <div className="flex items-center gap-4">
+                  {generatedImage && (
+                     <button onClick={handleSaveImage} className="flex items-center gap-1.5 text-sm font-medium text-indigo-600 hover:text-indigo-800">
+                        <DownloadIcon className="w-4 h-4" />
+                        Save Look
                     </button>
-                )}
+                  )}
+                  {wornItems.length > 0 && (
+                      <button onClick={onClearOutfit} className="text-sm font-medium text-red-600 hover:text-red-800">
+                          Clear Outfit
+                      </button>
+                  )}
+                </div>
             </div>
             
             {wornItems.length > 0 ? (
