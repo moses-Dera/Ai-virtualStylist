@@ -1,0 +1,74 @@
+import React from 'react';
+import { Outfit } from '../types';
+import { CloseIcon } from './icons/CloseIcon';
+import { SparklesIcon } from './icons/SparklesIcon';
+
+interface VirtualTryOnProps {
+  outfit: Outfit;
+  userImage: string | null;
+  onClearOutfit: () => void;
+  isGenerating: boolean;
+  generatedImage: string | null;
+}
+
+const WORN_ITEMS_ORDER: (keyof Outfit)[] = ['outerwear', 'top', 'bottom'];
+
+const VirtualTryOn: React.FC<VirtualTryOnProps> = ({ outfit, userImage, onClearOutfit, isGenerating, generatedImage }) => {
+  const wornItems = WORN_ITEMS_ORDER
+    .map(category => outfit[category])
+    .filter(Boolean);
+
+  const displayImage = generatedImage || userImage;
+
+  return (
+    <div className="bg-white rounded-xl shadow-lg p-4 flex flex-col h-full lg:max-h-[calc(100vh-7rem)]">
+        <h2 className="text-xl font-bold text-gray-800 mb-4 text-center">Virtual Try-On</h2>
+        <div className="relative flex-grow w-full flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200 rounded-lg overflow-hidden min-h-[300px] sm:min-h-[400px]">
+            {displayImage ? (
+                <img src={displayImage} alt="Virtual try on result" className="absolute inset-0 h-full w-full object-contain object-center z-10" />
+            ) : (
+                <div className="text-center text-gray-500 p-4">
+                    <p>Upload a photo in "My Profile" for a personalized try-on experience!</p>
+                </div>
+            )}
+            
+            {isGenerating && (
+                 <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black bg-opacity-60 backdrop-blur-sm transition-opacity">
+                    <SparklesIcon className="w-10 h-10 text-white animate-pulse" />
+                    <p className="text-white font-semibold mt-4 text-center">AI is creating your look...</p>
+                 </div>
+            )}
+        </div>
+        <div className="mt-4 flex-shrink-0 overflow-y-auto">
+            <div className="flex justify-between items-center mb-2">
+                <h3 className="font-semibold text-gray-700">Current Outfit:</h3>
+                {wornItems.length > 0 && (
+                    <button onClick={onClearOutfit} className="text-sm font-medium text-indigo-600 hover:text-indigo-800">
+                        Clear Outfit
+                    </button>
+                )}
+            </div>
+            
+            {wornItems.length > 0 ? (
+                 <div className="space-y-2">
+                    {wornItems.map(item => item && (
+                         <div key={item.id} className="flex items-center justify-between bg-gray-50 p-2 rounded-md">
+                            <div className="flex items-center gap-2">
+                                <img src={item.imageUrl} alt={item.name} className="w-10 h-10 object-contain rounded-md bg-white" />
+                                <div>
+                                    <p className="text-sm font-medium text-gray-800">{item.name}</p>
+                                    <p className="text-xs text-gray-500">{item.category}</p>
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                 </div>
+            ) : (
+                <p className="text-sm text-gray-500 text-center py-4">Select an item to try on!</p>
+            )}
+        </div>
+    </div>
+  );
+};
+
+export default VirtualTryOn;
