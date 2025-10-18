@@ -12,12 +12,13 @@ interface UserProfileModalProps {
 }
 
 const profileToFormData = (profile: UserProfile) => ({
-    height: String(profile.height),
-    weight: String(profile.weight),
-    chest: String(profile.chest),
-    waist: String(profile.waist),
-    hips: String(profile.hips),
-    userImage: profile.userImage,
+    name: profile.name || '',
+    height: String(profile.height || ''),
+    weight: String(profile.weight || ''),
+    chest: String(profile.chest || ''),
+    waist: String(profile.waist || ''),
+    hips: String(profile.hips || ''),
+    userImage: profile.userImage || null,
 });
 
 const UserProfileModal: React.FC<UserProfileModalProps> = ({ profile, onSave, onClose }) => {
@@ -183,12 +184,17 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ profile, onSave, on
     }
   };
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleNumericChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     if (/^[0-9]*$/.test(value)) {
         setFormData(prev => ({ ...prev, [name]: value }));
     }
   };
+  
+  const handleTextChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  }
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -206,6 +212,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ profile, onSave, on
 
   const handleSave = () => {
     onSave({
+      name: formData.name,
       height: Number(formData.height) || 0,
       weight: Number(formData.weight) || 0,
       chest: Number(formData.chest) || 0,
@@ -315,27 +322,31 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ profile, onSave, on
             {!isCameraOpen && (
               <>
                 <hr />
-                <h3 className="font-semibold text-center text-gray-600">Your Measurements</h3>
+                <div>
+                  <label htmlFor="name" className="block text-sm font-medium text-gray-700">Display Name</label>
+                  <input type="text" name="name" id="name" value={formData.name} onChange={handleTextChange} className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" />
+                </div>
+                <h3 className="font-semibold text-center text-gray-600 -mb-2">Your Measurements</h3>
                 <div>
                   <label htmlFor="height" className="block text-sm font-medium text-gray-700">Height (cm)</label>
-                  <input type="text" pattern="\d*" name="height" id="height" value={formData.height} onChange={handleChange} className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" />
+                  <input type="text" pattern="\d*" name="height" id="height" value={formData.height} onChange={handleNumericChange} className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" />
                 </div>
                 <div>
                   <label htmlFor="weight" className="block text-sm font-medium text-gray-700">Weight (kg)</label>
-                  <input type="text" pattern="\d*" name="weight" id="weight" value={formData.weight} onChange={handleChange} className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" />
+                  <input type="text" pattern="\d*" name="weight" id="weight" value={formData.weight} onChange={handleNumericChange} className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" />
                 </div>
                 <div className="grid grid-cols-3 gap-4">
                     <div>
                         <label htmlFor="chest" className="block text-sm font-medium text-gray-700">Chest (cm)</label>
-                        <input type="text" pattern="\d*" name="chest" id="chest" value={formData.chest} onChange={handleChange} className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" />
+                        <input type="text" pattern="\d*" name="chest" id="chest" value={formData.chest} onChange={handleNumericChange} className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" />
                     </div>
                     <div>
                         <label htmlFor="waist" className="block text-sm font-medium text-gray-700">Waist (cm)</label>
-                        <input type="text" pattern="\d*" name="waist" id="waist" value={formData.waist} onChange={handleChange} className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" />
+                        <input type="text" pattern="\d*" name="waist" id="waist" value={formData.waist} onChange={handleNumericChange} className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" />
                     </div>
                     <div>
                         <label htmlFor="hips" className="block text-sm font-medium text-gray-700">Hips (cm)</label>
-                        <input type="text" pattern="\d*" name="hips" id="hips" value={formData.hips} onChange={handleChange} className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" />
+                        <input type="text" pattern="\d*" name="hips" id="hips" value={formData.hips} onChange={handleNumericChange} className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" />
                     </div>
                 </div>
               </>

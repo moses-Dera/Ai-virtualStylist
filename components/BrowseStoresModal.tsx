@@ -43,9 +43,10 @@ interface BrowseStoresModalProps {
   onAddItem: (product: Product) => void;
   allProducts: Product[];
   isLoading: boolean;
+  isLoggedIn: boolean;
 }
 
-const BrowseStoresModal: React.FC<BrowseStoresModalProps> = ({ isOpen, onClose, onAddItem, allProducts, isLoading }) => {
+const BrowseStoresModal: React.FC<BrowseStoresModalProps> = ({ isOpen, onClose, onAddItem, allProducts, isLoading, isLoggedIn }) => {
   const [selectedCategory, setSelectedCategory] = useState<ProductCategory | 'All'>('All');
   const [addedProductIds, setAddedProductIds] = useState<Set<number>>(new Set());
 
@@ -125,6 +126,11 @@ const BrowseStoresModal: React.FC<BrowseStoresModalProps> = ({ isOpen, onClose, 
         </nav>
 
         <main className="p-4 sm:p-6 overflow-y-auto bg-gray-50 flex-grow">
+            {!isLoggedIn && (
+                <div className="bg-blue-50 border border-blue-200 text-blue-800 text-sm rounded-lg p-3 text-center mb-4">
+                    Please log in to add items to your personal closet.
+                </div>
+            )}
             {isLoading && filteredProducts.length === 0 ? (
                 <p className="text-center text-gray-500">Loading products...</p>
             ) : (

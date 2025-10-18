@@ -6,7 +6,7 @@ import { SparklesIcon } from './icons/SparklesIcon';
 
 interface ProductDetailModalProps {
   product: Product;
-  userProfile: UserProfile;
+  userProfile: UserProfile | undefined;
   onClose: () => void;
   onTryOn: (product: Product) => void;
 }
@@ -24,6 +24,10 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, userPr
     document.addEventListener('keydown', handleKeyDown);
 
     const fetchAnalysis = async () => {
+      if (!userProfile) {
+        setIsLoading(false);
+        return;
+      }
       setIsLoading(true);
       const result = await getFitAnalysis(product, userProfile);
       setFitResult(result);
@@ -47,6 +51,31 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, userPr
     if (event.target === event.currentTarget) {
         onClose();
     }
+  }
+  
+  const renderFitAnalysis = () => {
+    if (!userProfile) {
+      return <p className="text-sm text-indigo-700">Log in and complete your profile for a personalized AI size recommendation.</p>;
+    }
+     if (isLoading) {
+        return (
+          <div className="space-y-2 animate-pulse">
+            <div className="h-4 bg-indigo-200 rounded w-1/3"></div>
+            <div className="h-6 bg-indigo-200 rounded w-3/4"></div>
+          </div>
+        );
+      }
+      if (fitResult && fitResult.size !== 'N/A') {
+          return (
+              <div>
+                <p className="text-sm text-indigo-700">
+                  Recommended Size: <span className="font-bold text-lg">{fitResult.size}</span>
+                </p>
+                <p className="text-sm text-indigo-700 mt-1">{fitResult.analysis}</p>
+              </div>
+          );
+      }
+      return <p className="text-sm text-yellow-800 bg-yellow-100 p-3 rounded-md">AI analysis is unavailable. Please refer to our standard size chart.</p>;
   }
 
   return (
@@ -76,21 +105,7 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, userPr
               <SparklesIcon className="w-5 h-5 text-indigo-600" />
               <h3 className="font-bold text-indigo-800">AI Fit & Size Recommendation</h3>
             </div>
-            {isLoading ? (
-              <div className="space-y-2 animate-pulse">
-                <div className="h-4 bg-indigo-200 rounded w-1/3"></div>
-                <div className="h-6 bg-indigo-200 rounded w-3/4"></div>
-              </div>
-            ) : fitResult && fitResult.size !== 'N/A' ? (
-              <div>
-                <p className="text-sm text-indigo-700">
-                  Recommended Size: <span className="font-bold text-lg">{fitResult.size}</span>
-                </p>
-                <p className="text-sm text-indigo-700 mt-1">{fitResult.analysis}</p>
-              </div>
-            ) : (
-                 <p className="text-sm text-yellow-800 bg-yellow-100 p-3 rounded-md">AI analysis is unavailable. Please refer to our standard size chart.</p>
-            )}
+            {renderFitAnalysis()}
           </div>
 
           <div className="mt-auto">

@@ -10,11 +10,12 @@ interface VirtualTryOnProps {
   onClearOutfit: () => void;
   isGenerating: boolean;
   generatedImage: string | null;
+  isLoggedIn: boolean;
 }
 
 const WORN_ITEMS_ORDER: (keyof Outfit)[] = ['outerwear', 'top', 'bottom'];
 
-const VirtualTryOn: React.FC<VirtualTryOnProps> = ({ outfit, userImage, onClearOutfit, isGenerating, generatedImage }) => {
+const VirtualTryOn: React.FC<VirtualTryOnProps> = ({ outfit, userImage, onClearOutfit, isGenerating, generatedImage, isLoggedIn }) => {
   const wornItems = WORN_ITEMS_ORDER
     .map(category => outfit[category])
     .filter(Boolean);
@@ -31,6 +32,13 @@ const VirtualTryOn: React.FC<VirtualTryOnProps> = ({ outfit, userImage, onClearO
     document.body.removeChild(link);
   };
 
+  const renderPlaceholder = () => {
+    if (isLoggedIn) {
+      return <p>Upload a photo in "My Profile" for a personalized try-on experience!</p>;
+    }
+    return <p>Please Log In or Sign Up to use the Virtual Try-On feature.</p>;
+  }
+
   return (
     <div className="bg-white rounded-xl shadow-lg p-4 flex flex-col h-full lg:max-h-[calc(100vh-7rem)]">
         <h2 className="text-xl font-bold text-gray-800 mb-4 text-center">Virtual Try-On</h2>
@@ -39,7 +47,7 @@ const VirtualTryOn: React.FC<VirtualTryOnProps> = ({ outfit, userImage, onClearO
                 <img src={displayImage} alt="Virtual try on result" className="absolute inset-0 h-full w-full object-contain object-center z-10" />
             ) : (
                 <div className="text-center text-gray-500 p-4">
-                    <p>Upload a photo in "My Profile" for a personalized try-on experience!</p>
+                    {renderPlaceholder()}
                 </div>
             )}
             
