@@ -1,7 +1,24 @@
-import { GoogleGenAI, Type, Modality } from "@google/genai";
+import { GoogleGenAI, Modality, Type } from "@google/genai";
 import { Product, UserProfile } from "../types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
+// The API key is hardcoded here to work in environments where .env files are not supported.
+const GEMINI_API_KEY = "AIzaSyCJb6kUZSIIILNYkuxF4LlDRTCJBJ4Nx90";
+
+export const isGeminiConfigured = !!GEMINI_API_KEY;
+
+// Lazily initialize the AI client.
+let ai: GoogleGenAI | null = null;
+const getAi = () => {
+    if (!ai) {
+        if (!isGeminiConfigured) {
+            // This path should not be reachable with a hardcoded key, but it's good practice for robustness.
+            throw new Error("Gemini API key not configured. This function should not be called.");
+        }
+        ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
+    }
+    return ai;
+}
+
 
 // --- VIRTUAL TRY-ON ---
 
@@ -12,7 +29,7 @@ export const generateTryOnImage = async (
   const prompt = `Take the clothing item from the second image and place it realistically on the person in the first image. Ensure the fit, lighting, and shadows are natural. The background should remain the same as the first image.`;
 
   try {
-    const response = await ai.models.generateContent({
+    const response = await getAi().models.generateContent({
       model: 'gemini-2.5-flash-image',
       contents: {
         parts: [
@@ -26,8 +43,13 @@ export const generateTryOnImage = async (
       },
     });
 
-    // Extract the base64 data of the generated image
-    for (const part of response.candidates[0].content.parts) {
+    // Safely access the generated image data
+    const candidate = response.candidates?.[0];
+    if (!candidate || !candidate.content || !candidate.content.parts) {
+      throw new Error("The AI response was empty or invalid. This might be due to content safety filters.");
+    }
+    
+    for (const part of candidate.content.parts) {
         if (part.inlineData) {
             const base64ImageBytes: string = part.inlineData.data;
             return `data:image/png;base64,${base64ImageBytes}`;
@@ -76,7 +98,7 @@ export const getFitAnalysis = async (
         return { size: 'N/A', analysis: "Complete your profile with measurements for a size recommendation." };
     }
 
-    const response = await ai.models.generateContent({
+    const response = await getAi().models.generateContent({
       model: 'gemini-2.5-flash',
       contents: prompt,
       config: {
@@ -139,7 +161,7 @@ export const getFashionAdvice = async (
     Please provide your fashion advice.
   `;
   try {
-    const response = await ai.models.generateContent({
+    const response = await getAi().models.generateContent({
       model: "gemini-2.5-flash",
       contents: prompt,
       config: {

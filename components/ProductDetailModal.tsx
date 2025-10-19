@@ -6,7 +6,7 @@ import { SparklesIcon } from './icons/SparklesIcon';
 
 interface ProductDetailModalProps {
   product: Product;
-  userProfile: UserProfile | undefined;
+  userProfile?: UserProfile;
   onClose: () => void;
   onTryOn: (product: Product) => void;
 }
@@ -55,7 +55,7 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, userPr
   
   const renderFitAnalysis = () => {
     if (!userProfile) {
-      return <p className="text-sm text-indigo-700">Log in and complete your profile for a personalized AI size recommendation.</p>;
+      return <p className="text-sm text-indigo-700">Upload your photo and set measurements for a personalized AI size recommendation.</p>;
     }
      if (isLoading) {
         return (

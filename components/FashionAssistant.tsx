@@ -9,10 +9,9 @@ interface FashionAssistantProps {
   onClose: () => void;
   userProfile: UserProfile | undefined;
   products: Product[];
-  isLoggedIn: boolean;
 }
 
-const FashionAssistant: React.FC<FashionAssistantProps> = ({ isOpen, onClose, userProfile, products, isLoggedIn }) => {
+const FashionAssistant: React.FC<FashionAssistantProps> = ({ isOpen, onClose, userProfile, products }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([
     { sender: 'bot', text: "Hello! I'm your personal stylist. How can I help you today? Try asking for 'a casual outfit for the weekend' or 'something for a business meeting'." },
   ]);
@@ -108,11 +107,11 @@ const FashionAssistant: React.FC<FashionAssistantProps> = ({ isOpen, onClose, us
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-              placeholder={isLoggedIn ? "Ask for style advice..." : "Log in for style advice"}
+              placeholder={"Ask for style advice..."}
               className="flex-1 px-4 py-2 bg-gray-100 border border-gray-200 rounded-full focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              disabled={isLoading || !isLoggedIn}
+              disabled={isLoading}
             />
-            <button onClick={handleSend} disabled={isLoading || !isLoggedIn} className="bg-indigo-600 text-white px-4 py-2 rounded-full font-semibold hover:bg-indigo-700 disabled:bg-indigo-300 transition-colors">
+            <button onClick={handleSend} disabled={isLoading} className="bg-indigo-600 text-white px-4 py-2 rounded-full font-semibold hover:bg-indigo-700 disabled:bg-indigo-300 transition-colors">
               Send
             </button>
           </div>

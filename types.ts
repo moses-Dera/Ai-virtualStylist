@@ -32,17 +32,3 @@ export interface UserProfile {
     hips?: number | null;
     userImage?: string | null; // For base64 image from form/camera
 }
-
-// Represents the full user object, combining auth info and DB profile
-export interface AppUser {
-    id: string;
-    email?: string;
-    name?: string | null;
-    height?: number | null;
-    weight?: number | null;
-    chest?: number | null;
-    waist?: number | null;
-    hips?: number | null;
-    user_image_url?: string | null; // For URL from DB
-    closet?: Product[];
-}

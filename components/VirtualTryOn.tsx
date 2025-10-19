@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { Outfit } from '../types';
 import { CloseIcon } from './icons/CloseIcon';
 import { SparklesIcon } from './icons/SparklesIcon';
 import { DownloadIcon } from './icons/DownloadIcon';
+import { UploadIcon } from './icons/UploadIcon';
 
 interface VirtualTryOnProps {
   outfit: Outfit;
@@ -10,17 +11,18 @@ interface VirtualTryOnProps {
   onClearOutfit: () => void;
   isGenerating: boolean;
   generatedImage: string | null;
-  isLoggedIn: boolean;
+  onImageUpload: (imageDataUrl: string) => void;
 }
 
 const WORN_ITEMS_ORDER: (keyof Outfit)[] = ['outerwear', 'top', 'bottom'];
 
-const VirtualTryOn: React.FC<VirtualTryOnProps> = ({ outfit, userImage, onClearOutfit, isGenerating, generatedImage, isLoggedIn }) => {
+const VirtualTryOn: React.FC<VirtualTryOnProps> = ({ outfit, userImage, onClearOutfit, isGenerating, generatedImage, onImageUpload }) => {
   const wornItems = WORN_ITEMS_ORDER
     .map(category => outfit[category])
     .filter(Boolean);
 
   const displayImage = generatedImage || userImage;
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleSaveImage = () => {
     if (!generatedImage) return;
@@ -32,11 +34,36 @@ const VirtualTryOn: React.FC<VirtualTryOnProps> = ({ outfit, userImage, onClearO
     document.body.removeChild(link);
   };
 
-  const renderPlaceholder = () => {
-    if (isLoggedIn) {
-      return <p>Upload a photo in "My Profile" for a personalized try-on experience!</p>;
+  const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        onImageUpload(reader.result as string);
+      };
+      reader.readAsDataURL(file);
     }
-    return <p>Please Log In or Sign Up to use the Virtual Try-On feature.</p>;
+  };
+
+  const renderPlaceholder = () => {
+    return (
+        <div className="text-center text-gray-500 p-4 flex flex-col items-center">
+            <p className="mb-4">Upload a photo for a personalized try-on experience!</p>
+            <button
+                onClick={() => fileInputRef.current?.click()}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 transition-colors"
+            >
+               <UploadIcon className="w-5 h-5"/> Upload Your Photo
+            </button>
+            <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleImageFileChange}
+                accept="image/png, image/jpeg"
+                className="hidden"
+            />
+        </div>
+    );
   }
 
   return (
@@ -46,9 +73,7 @@ const VirtualTryOn: React.FC<VirtualTryOnProps> = ({ outfit, userImage, onClearO
             {displayImage ? (
                 <img src={displayImage} alt="Virtual try on result" className="absolute inset-0 h-full w-full object-contain object-center z-10" />
             ) : (
-                <div className="text-center text-gray-500 p-4">
-                    {renderPlaceholder()}
-                </div>
+                renderPlaceholder()
             )}
             
             {isGenerating && (

@@ -1,21 +1,16 @@
 import React from 'react';
 import { Product, ProductCategory } from '../types';
 import ProductCard from './ProductCard';
-import { UploadCloudIcon } from './icons/UploadCloudIcon';
-import { ShoppingBagIcon } from './icons/ShoppingBagIcon';
 
 interface ProductGridProps {
   products: Product[];
-  categories: (ProductCategory | 'My Closet')[];
-  selectedCategory: ProductCategory | 'All' | 'My Closet';
-  onSelectCategory: (category: ProductCategory | 'All' | 'My Closet') => void;
+  categories: ProductCategory[];
+  selectedCategory: ProductCategory | 'All';
+  onSelectCategory: (category: ProductCategory | 'All') => void;
   onTryOn: (product: Product) => void;
   onViewDetails: (product: Product) => void;
   isLoading: boolean;
   error: string | null;
-  onOpenUploadModal: () => void;
-  onOpenBrowseStoresModal: () => void;
-  isLoggedIn: boolean;
 }
 
 const ProductCardSkeleton: React.FC = () => (
@@ -40,9 +35,6 @@ const ProductGrid: React.FC<ProductGridProps> = ({
   onViewDetails,
   isLoading,
   error,
-  onOpenUploadModal,
-  onOpenBrowseStoresModal,
-  isLoggedIn,
 }) => {
   const renderContent = () => {
     if (isLoading && products.length === 0) {
@@ -59,16 +51,10 @@ const ProductGrid: React.FC<ProductGridProps> = ({
     }
 
     if (products.length === 0 && !isLoading) {
-        let message = "No products found in this category.";
-        if (selectedCategory === 'My Closet') {
-          message = isLoggedIn 
-            ? "Your closet is empty. Upload your own clothes or browse stores to add items!"
-            : "Log in to see your personal closet.";
-        }
       return (
         <div className="col-span-full text-center py-16 px-4">
           <h3 className="text-xl font-semibold text-gray-700">No Products Found</h3>
-          <p className="text-gray-500 mt-2">{message}</p>
+          <p className="text-gray-500 mt-2">No products found in this category.</p>
         </div>
       );
     }
@@ -85,29 +71,9 @@ const ProductGrid: React.FC<ProductGridProps> = ({
 
   return (
     <div className="bg-white p-4 sm:p-6 rounded-xl shadow-lg">
-      <div className="mb-6 flex flex-wrap justify-between items-start">
-        <div>
+      <div className="mb-6">
           <h2 className="text-2xl font-bold text-gray-800 mb-1">Explore Collection</h2>
           <p className="text-gray-500">Select an item to see details or try it on instantly.</p>
-        </div>
-        {isLoggedIn && (
-          <div className="flex items-center gap-2 mt-4 sm:mt-0">
-            <button
-              onClick={onOpenBrowseStoresModal}
-              className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-indigo-600 border border-indigo-300 rounded-full hover:bg-indigo-50 transition-colors"
-            >
-              <ShoppingBagIcon className="w-5 h-5" />
-              Browse Stores
-            </button>
-            <button
-              onClick={onOpenUploadModal}
-              className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-indigo-600 border border-indigo-300 rounded-full hover:bg-indigo-50 transition-colors"
-            >
-              <UploadCloudIcon className="w-5 h-5" />
-              Upload
-            </button>
-          </div>
-        )}
       </div>
       
       <div className="flex flex-wrap items-center gap-2 mb-6 border-b border-gray-200 pb-4">
