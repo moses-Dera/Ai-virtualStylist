@@ -1,6 +1,6 @@
 {
   "name": "AI Virtual Stylist",
-  "description": "A sophisticated virtual try-on application that uses AI to provide personalized styling advice, size recommendations, and a seamless virtual shopping experience. Users can create a body profile, try on different clothing items on a virtual model, and interact with an AI fashion assistant for recommendations.",
+  "description": "An AI-powered virtual stylist that allows you to try on clothes, get fit analysis, and receive personalized fashion advice. Upload your photo and explore a new way to shop and style.",
   "requestFramePermissions": [
     "camera"
   ]

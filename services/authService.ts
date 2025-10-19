@@ -2,6 +2,27 @@ import { User as SupabaseUser, AuthError } from '@supabase/supabase-js';
 import { supabase } from '../supabaseClient';
 import { AppUser, UserProfile } from '../types';
 
+// --- Helper Functions ---
+
+// Converts a base64 string to a File object so it can be uploaded to Storage
+const base64ToFile = (base64: string, filename: string): File => {
+    const arr = base64.split(',');
+    // The first part of the array is the mime type
+    const mimeMatch = arr[0].match(/:(.*?);/);
+    if (!mimeMatch || mimeMatch.length < 2) {
+        throw new Error("Invalid base64 string for mime type.");
+    }
+    const mime = mimeMatch[1];
+    const bstr = atob(arr[1]);
+    let n = bstr.length;
+    const u8arr = new Uint8Array(n);
+    while (n--) {
+        u8arr[n] = bstr.charCodeAt(n);
+    }
+    return new File([u8arr], filename, { type: mime });
+}
+
+
 // --- Authentication ---
 
 export const signUp = async (email: string, password: string): Promise<{error: AuthError | null}> => {
@@ -14,12 +35,9 @@ export const login = async (email: string, password: string): Promise<{error: Au
     return { error };
 };
 
-export const loginWithGoogle = async (): Promise<{error: AuthError | null}> => {
-    const { error } = await supabase.auth.signInWithOAuth({ 
+export const signInWithGoogleOAuth = async (): Promise<{error: AuthError | null}> => {
+    const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
-        options: {
-            redirectTo: window.location.origin,
-        }
     });
     return { error };
 };
@@ -89,12 +107,41 @@ export const updateUserProfile = async (
     userId: string, 
     profileData: Partial<AppUser>
 ): Promise<AppUser> => {
-    // Separate userImage from UserProfile to user_image_url for DB
     const { userImage, ...restOfProfileData } = profileData as UserProfile & { userImage?: string };
     const dbData: Partial<AppUser> = { ...restOfProfileData };
-    if (userImage !== undefined) {
-        dbData.user_image_url = userImage;
+
+    // If userImage is a new base64 string, upload it to storage first
+    if (userImage && userImage.startsWith('data:image')) {
+        try {
+            const file = base64ToFile(userImage, `avatar-${userId}.png`);
+            // Use a consistent file path to allow for easy updates/overwrites
+            const filePath = `public/${userId}/avatar.png`;
+
+            const { error: uploadError } = await supabase.storage
+                .from('user_images') // Assumes a public bucket named 'user_images' exists
+                .upload(filePath, file, {
+                    cacheControl: '3600',
+                    upsert: true, // This will overwrite the existing file, which is desired for a profile picture
+                });
+
+            if (uploadError) throw uploadError;
+
+            // Get the public URL of the uploaded file
+            const { data: urlData } = supabase.storage
+                .from('user_images')
+                .getPublicUrl(filePath);
+
+            dbData.user_image_url = urlData.publicUrl;
+
+        } catch (storageError) {
+            console.error('Error uploading new profile image:', storageError);
+            throw new Error("Failed to upload the new profile image. Please try again.");
+        }
+    } else if (userImage !== undefined) {
+       // This handles cases where the image is cleared (set to null) or is already a URL
+       dbData.user_image_url = userImage;
     }
+
 
     const { data, error } = await supabase
         .from('profiles')

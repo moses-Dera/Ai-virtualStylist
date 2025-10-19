@@ -1,52 +1,48 @@
-import { User as SupabaseUser } from '@supabase/supabase-js';
+// types.ts
 
 export type ProductCategory = 'Tops' | 'Bottoms' | 'Outerwear';
 
 export interface Product {
   id: number;
   name: string;
-  category: ProductCategory;
   price: number;
   imageUrl: string;
+  category: ProductCategory;
   styleKeywords: string[];
-  isCustom?: boolean;
 }
-
-// Represents the data structure in the 'profiles' table in Supabase
-// And is used for forms
-export interface UserProfile {
-  name?: string | null;
-  height?: number | null;
-  weight?: number | null;
-  chest?: number | null;
-  waist?: number | null;
-  hips?: number | null;
-  userImage?: string | null;
-  closet?: Product[];
-}
-
-// Represents the combined user object used throughout the application
-export interface AppUser {
-  id: string; // from Supabase auth
-  email?: string; // from Supabase auth
-  name?: string | null;
-  height?: number | null;
-  weight?: number | null;
-  chest?: number | null;
-  waist?: number | null;
-  hips?: number | null;
-  user_image_url?: string | null;
-  closet: Product[];
-}
-
 
 export interface Outfit {
-  top: Product | null;
-  bottom: Product | null;
-  outerwear: Product | null;
+  top?: Product;
+  bottom?: Product;
+  outerwear?: Product;
 }
 
 export interface ChatMessage {
   sender: 'user' | 'bot' | 'system';
   text: string;
+}
+
+// Represents the data structure for the user profile form/modal
+export interface UserProfile {
+    name?: string | null;
+    height?: number | null;
+    weight?: number | null;
+    chest?: number | null;
+    waist?: number | null;
+    hips?: number | null;
+    userImage?: string | null; // For base64 image from form/camera
+}
+
+// Represents the full user object, combining auth info and DB profile
+export interface AppUser {
+    id: string;
+    email?: string;
+    name?: string | null;
+    height?: number | null;
+    weight?: number | null;
+    chest?: number | null;
+    waist?: number | null;
+    hips?: number | null;
+    user_image_url?: string | null; // For URL from DB
+    closet?: Product[];
 }

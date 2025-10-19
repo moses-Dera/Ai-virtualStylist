@@ -1,140 +1,23 @@
 import { GoogleGenAI, Type, Modality } from "@google/genai";
-import { Product, UserProfile } from '../types';
+import { Product, UserProfile } from "../types";
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
 
-/**
- * Converts an image URL to a base64 encoded string.
- */
-const urlToBase64 = async (url: string): Promise<string> => {
-  try {
-    const response = await fetch(url);
-    if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    const blob = await response.blob();
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onloadend = () => resolve((reader.result as string).split(',')[1]); // remove the "data:..." part
-      reader.onerror = reject;
-      reader.readAsDataURL(blob);
-    });
-  } catch (error) {
-    console.error(`Failed to convert URL to base64: ${url}`, error);
-    throw error;
-  }
-};
-
-
-export const getFashionAdvice = async (
-  prompt: string,
-  userProfile: UserProfile,
-  products: Product[]
-): Promise<string> => {
-  const productList = products.map(p => `- ${p.name} (ID: ${p.id}, Category: ${p.category}, Style: ${p.styleKeywords.join(', ')})`).join('\n');
-  
-  const systemInstruction = `You are a world-class fashion stylist. Your goal is to help the user find the perfect outfit.
-The user's measurements are: Height ${userProfile.height}cm, Weight ${userProfile.weight}kg, Chest ${userProfile.chest}cm, Waist ${userProfile.waist}cm, Hips ${userProfile.hips}cm.
-The available clothing items are:
-${productList}
-
-Based on the user's request, recommend specific items from the list by name and provide styling advice. Be friendly, concise, and helpful. If you recommend an item, mention its name exactly as provided.`;
-
-  try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: prompt,
-      config: {
-        systemInstruction: systemInstruction,
-        temperature: 0.7,
-      }
-    });
-    return response.text;
-  } catch (error) {
-    console.error("Error getting fashion advice:", error);
-    return "I'm sorry, I'm having trouble coming up with a recommendation right now. Please try again later.";
-  }
-};
-
-export const getFitAnalysis = async (
-  product: Product,
-  userProfile: UserProfile
-): Promise<{ size: string; analysis: string }> => {
-  const prompt = `Analyze the fit for a user with these measurements:
-- Height: ${userProfile.height} cm
-- Weight: ${userProfile.weight} kg
-- Chest: ${userProfile.chest} cm
-- Waist: ${userProfile.waist} cm
-- Hips: ${userProfile.hips} cm
-
-The clothing item is:
-- Name: ${product.name}
-- Category: ${product.category}
-- Style Keywords: ${product.styleKeywords.join(', ')}
-
-Based on general sizing standards and the item's style, recommend a size (e.g., S, M, L, XL) and provide a brief, 1-2 sentence fit analysis. For example, "This will be a slim fit on the chest" or "The length should be perfect for your height."`;
-
-  try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: prompt,
-      config: {
-        responseMimeType: 'application/json',
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            size: {
-              type: Type.STRING,
-              description: 'The recommended clothing size (e.g., S, M, L, XL).'
-            },
-            analysis: {
-              type: Type.STRING,
-              description: 'A brief, 1-2 sentence analysis of how the item will fit.'
-            }
-          },
-          required: ['size', 'analysis']
-        }
-      }
-    });
-    
-    const jsonString = response.text.trim();
-    const result = JSON.parse(jsonString);
-    return result;
-  } catch (error) {
-    console.error("Error getting fit analysis:", error);
-    return {
-      size: "N/A",
-      analysis: "Could not determine fit. Please refer to a standard size chart."
-    };
-  }
-};
-
+// --- VIRTUAL TRY-ON ---
 
 export const generateTryOnImage = async (
-  baseUserImage: string, // must be base64 string
-  clothingProduct: Product,
+  userImageBase64: string,
+  clothingImageBase64: string
 ): Promise<string> => {
+  const prompt = `Take the clothing item from the second image and place it realistically on the person in the first image. Ensure the fit, lighting, and shadows are natural. The background should remain the same as the first image.`;
+
   try {
-    const clothingImageBase64 = await urlToBase64(clothingProduct.imageUrl);
-
-    const prompt = `Take the person in the first image and realistically dress them in the clothing item from the second image ('${clothingProduct.name}'). The clothing is a ${clothingProduct.category}. Ensure the fit looks natural and respects the person's body shape and pose. The background should be the same as the first image. The output should only be the final image of the person wearing the clothes.`;
-
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash-image',
       contents: {
         parts: [
-          {
-            inlineData: {
-              mimeType: 'image/jpeg',
-              data: baseUserImage,
-            },
-          },
-          {
-            inlineData: {
-                mimeType: 'image/jpeg',
-                data: clothingImageBase64,
-            },
-          },
+          { inlineData: { mimeType: 'image/jpeg', data: userImageBase64 } },
+          { inlineData: { mimeType: 'image/png', data: clothingImageBase64 } },
           { text: prompt },
         ],
       },
@@ -143,15 +26,129 @@ export const generateTryOnImage = async (
       },
     });
 
-    for (const part of response.candidates?.[0]?.content?.parts || []) {
-      if (part.inlineData) {
-        return `data:image/png;base64,${part.inlineData.data}`;
-      }
+    // Extract the base64 data of the generated image
+    for (const part of response.candidates[0].content.parts) {
+        if (part.inlineData) {
+            const base64ImageBytes: string = part.inlineData.data;
+            return `data:image/png;base64,${base64ImageBytes}`;
+        }
     }
-    throw new Error('No image was generated by the model.');
+    throw new Error("No image was generated by the AI.");
 
   } catch (error) {
     console.error("Error generating try-on image:", error);
-    throw new Error("The AI stylist couldn't create the look. The item might not be suitable for this photo.");
+    throw new Error("The AI stylist had trouble creating your look. Please try again.");
+  }
+};
+
+
+// --- FIT & STYLE ANALYSIS ---
+
+export const getFitAnalysis = async (
+  product: Product,
+  userProfile: UserProfile
+): Promise<{ size: string; analysis: string }> => {
+  const systemInstruction = `You are an AI fashion assistant. Your task is to recommend a clothing size and provide a brief fit analysis based on the user's measurements and the product's details. The user's measurements are in centimeters (cm). If the user's measurements are not provided, state that the analysis is unavailable. Structure your response as a JSON object with two keys: 'size' (e.g., "M", "L", "XL", or "N/A") and 'analysis' (a 1-2 sentence explanation).`;
+  
+  const userMeasurements = `
+    - Height: ${userProfile.height || 'N/A'} cm
+    - Weight: ${userProfile.weight || 'N/A'} kg
+    - Chest: ${userProfile.chest || 'N/A'} cm
+    - Waist: ${userProfile.waist || 'N/A'} cm
+    - Hips: ${userProfile.hips || 'N/A'} cm
+  `;
+
+  const prompt = `
+    Analyze the fit for the following product based on the user's measurements.
+    
+    Product Details:
+    - Name: ${product.name}
+    - Category: ${product.category}
+    
+    User's Measurements:
+    ${userMeasurements}
+
+    Provide a size recommendation and a brief analysis.
+  `;
+
+  try {
+    if (!userProfile.height && !userProfile.weight && !userProfile.chest) {
+        return { size: 'N/A', analysis: "Complete your profile with measurements for a size recommendation." };
+    }
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: prompt,
+      config: {
+        systemInstruction: systemInstruction,
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            size: {
+              type: Type.STRING,
+              description: "The recommended clothing size (e.g., S, M, L, XL) or 'N/A' if not determinable."
+            },
+            analysis: {
+              type: Type.STRING,
+              description: "A brief, 1-2 sentence analysis of the fit."
+            }
+          },
+          required: ['size', 'analysis']
+        }
+      }
+    });
+
+    const jsonString = response.text.trim();
+    const result = JSON.parse(jsonString);
+    return result;
+
+  } catch (error) {
+    console.error("Error getting fit analysis:", error);
+    return { size: 'N/A', analysis: "AI analysis is currently unavailable. Please try again later." };
+  }
+};
+
+// FIX: Completed the function which was truncated, causing a return type error.
+export const getFashionAdvice = async (
+  userInput: string,
+  userProfile: UserProfile,
+  products: Product[]
+): Promise<string> => {
+  const systemInstruction = `You are a friendly and knowledgeable AI fashion stylist. Your goal is to provide helpful and concise style advice based on the user's request. Consider the user's profile and the available products. Use markdown for formatting.`;
+
+  const userDetails = `
+    Here is some information about the user you are advising:
+    - Name: ${userProfile.name || 'N/A'}
+    - Height: ${userProfile.height || 'N/A'} cm
+    - Weight: ${userProfile.weight || 'N/A'} kg
+    - Measurements (Chest/Waist/Hips in cm): ${userProfile.chest || 'N/A'}/${userProfile.waist || 'N/A'}/${userProfile.hips || 'N/A'}
+  `;
+
+  const productList = products.length > 0
+    ? 'Here is a list of available clothing items:\n' + products.map(p => `- ${p.name} (${p.category})`).join('\n')
+    : 'There are no specific products available right now, so give general advice.';
+
+  const prompt = `
+    ${userDetails}
+
+    ${productList.substring(0, 3000)}
+
+    The user's request is: "${userInput}"
+
+    Please provide your fashion advice.
+  `;
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: prompt,
+      config: {
+        systemInstruction,
+      },
+    });
+    return response.text;
+  } catch (error) {
+    console.error("Error getting fashion advice:", error);
+    return "I'm sorry, I'm having trouble coming up with advice right now. Please try again in a moment.";
   }
 };

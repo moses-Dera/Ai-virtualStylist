@@ -1,322 +1,318 @@
-import React, { useState, useCallback, useEffect } from 'react';
-import { Product, UserProfile, Outfit, ProductCategory, AppUser } from './types';
-import { CATEGORIES } from './constants';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Product, Outfit, AppUser, UserProfile, ProductCategory } from './types';
+import * as authService from './services/authService';
+import * as productService from './services/productService';
+import * as geminiService from './services/geminiService';
+import { isSupabaseConfigured, supabase } from './supabaseClient';
+
+// Import Components
 import Header from './components/Header';
 import ProductGrid from './components/ProductGrid';
 import VirtualTryOn from './components/VirtualTryOn';
-import FashionAssistant from './components/FashionAssistant';
-import UserProfileModal from './components/UserProfileModal';
-import ProductDetailModal from './components/ProductDetailModal';
-import UploadClothingModal from './components/UploadClothingModal';
-import BrowseStoresModal from './components/BrowseStoresModal';
 import LoginModal from './components/LoginModal';
 import SignUpModal from './components/SignUpModal';
-import { fetchProducts } from './services/productService';
-import { generateTryOnImage } from './services/geminiService';
-import * as authService from './services/authService';
-import { supabase } from './supabaseClient';
+import UserProfileModal from './components/UserProfileModal';
+import ProductDetailModal from './components/ProductDetailModal';
+import FashionAssistant from './components/FashionAssistant';
+import UploadClothingModal from './components/UploadClothingModal';
+import BrowseStoresModal from './components/BrowseStoresModal';
+import SupabaseConfigModal from './components/SupabaseConfigModal';
 
 const App: React.FC = () => {
-  const [currentUser, setCurrentUser] = useState<AppUser | null>(null);
-  
-  const [products, setProducts] = useState<Product[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const [outfit, setOutfit] = useState<Outfit>({
-    top: null,
-    bottom: null,
-    outerwear: null,
-  });
-  
-  const [tryOnResultImage, setTryOnResultImage] = useState<string | null>(null);
-  const [isGeneratingTryOn, setIsGeneratingTryOn] = useState<boolean>(false);
-
-  const [selectedCategory, setSelectedCategory] = useState<ProductCategory | 'All' | 'My Closet'>('All');
-  
-  // Modal States
-  const [isProfileModalOpen, setProfileModalOpen] = useState<boolean>(false);
-  const [isAssistantOpen, setAssistantOpen] = useState<boolean>(false);
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-  const [isUploadModalOpen, setUploadModalOpen] = useState<boolean>(false);
-  const [isBrowseStoresModalOpen, setBrowseStoresModalOpen] = useState<boolean>(false);
-  const [isLoginModalOpen, setLoginModalOpen] = useState<boolean>(false);
-  const [isSignUpModalOpen, setSignUpModalOpen] = useState<boolean>(false);
-
-  // Initial load and auth listener
-  useEffect(() => {
-    const loadAppData = async () => {
-      try {
-        setIsLoading(true);
-        setError(null);
-        const fetchedProducts = await fetchProducts();
-        setProducts(fetchedProducts);
-      } catch (err) {
-        setError("Failed to load products. Please try again later.");
-        console.error(err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    loadAppData();
-
-    const { data: authListener } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        const sessionUser = session?.user;
-        if (sessionUser) {
-          const userProfile = await authService.getUserProfile(sessionUser);
-          setCurrentUser(userProfile);
-        } else {
-          setCurrentUser(null);
-        }
-      }
-    );
-
-    return () => {
-      authListener.subscription.unsubscribe();
-    };
-  }, []);
-  
-  const handleLogout = async () => {
-    await authService.logout();
-    setCurrentUser(null);
-    setOutfit({ top: null, bottom: null, outerwear: null });
-    setTryOnResultImage(null);
-    setSelectedCategory('All');
-  };
-  
-  const handleSaveProfile = async (profileData: UserProfile) => {
-    if (!currentUser) return;
-    try {
-      const updatedUser = await authService.updateUserProfile(currentUser.id, profileData);
-      setCurrentUser(updatedUser);
-      setProfileModalOpen(false);
-    } catch(error) {
-        console.error("Failed to save profile:", error);
-        alert("There was an error saving your profile.");
+    // --- CONFIG CHECK ---
+    if (!isSupabaseConfigured) {
+        return <SupabaseConfigModal />;
     }
-  };
-  
-  const handleAddCustomProduct = useCallback(async (file: File, category: ProductCategory, name: string) => {
-    if (!currentUser) return;
     
-    // This is now handled by Supabase storage, but for simplicity, we keep it client-side for now
-    const reader = new FileReader();
-    reader.onloadend = async () => {
-        const newProduct: Product = {
-            id: Date.now() * -1, // Negative ID for custom items
-            name: name || `My ${category}`,
-            category,
-            price: 0,
-            imageUrl: reader.result as string,
-            styleKeywords: ['custom', 'user-upload'],
-            isCustom: true,
+    // --- STATE MANAGEMENT ---
+
+    // Auth & User
+    const [currentUser, setCurrentUser] = useState<AppUser | null>(null);
+    const [isAuthLoading, setIsAuthLoading] = useState(true);
+
+    // Products & Closet
+    const [allProducts, setAllProducts] = useState<Product[]>([]);
+    const [closetProducts, setClosetProducts] = useState<Product[]>([]);
+    const [isLoadingProducts, setIsLoadingProducts] = useState(true);
+    const [productError, setProductError] = useState<string | null>(null);
+    const [selectedCategory, setSelectedCategory] = useState<ProductCategory | 'All' | 'My Closet'>('All');
+
+    // Virtual Try-On
+    const [currentOutfit, setCurrentOutfit] = useState<Outfit>({});
+    const [generatedImage, setGeneratedImage] = useState<string | null>(null);
+    const [isGenerating, setIsGenerating] = useState(false);
+
+    // Modal Visibility
+    const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+    const [isSignUpModalOpen, setIsSignUpModalOpen] = useState(false);
+    const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+    const [isAssistantOpen, setIsAssistantOpen] = useState(false);
+    const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+    const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+    const [isBrowseStoresModalOpen, setIsBrowseStoresModalOpen] = useState(false);
+    
+    const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+
+    // --- DATA FETCHING & AUTH ---
+
+    useEffect(() => {
+        const fetchAllProducts = async () => {
+            setIsLoadingProducts(true);
+            try {
+                const products = await productService.fetchProducts();
+                setAllProducts(products);
+            } catch (error) {
+                setProductError('Could not fetch products. Please try again later.');
+            } finally {
+                setIsLoadingProducts(false);
+            }
         };
-        const updatedCloset = [newProduct, ...currentUser.closet];
-        
+        fetchAllProducts();
+    }, []);
+
+    useEffect(() => {
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+            setIsAuthLoading(true);
+            if (session?.user) {
+                try {
+                    const profile = await authService.getUserProfile(session.user);
+                    setCurrentUser(profile);
+                    setClosetProducts(profile.closet || []);
+                } catch (error) {
+                    console.error("Error fetching user profile:", error);
+                    setCurrentUser(null);
+                }
+            } else {
+                setCurrentUser(null);
+                setClosetProducts([]);
+            }
+            setIsAuthLoading(false);
+        });
+
+        // Initial check
+        const checkInitialSession = async () => {
+            const { data: { session } } = await supabase.auth.getSession();
+             if (session?.user) {
+                try {
+                    const profile = await authService.getUserProfile(session.user);
+                    setCurrentUser(profile);
+                    setClosetProducts(profile.closet || []);
+                } catch (error) {
+                    console.error("Error fetching initial user profile:", error);
+                    setCurrentUser(null);
+                }
+            }
+            setIsAuthLoading(false);
+        };
+        checkInitialSession();
+
+        return () => subscription.unsubscribe();
+    }, []);
+
+    // --- EVENT HANDLERS ---
+
+    const handleTryOn = useCallback(async (product: Product) => {
+        if (!currentUser?.user_image_url) {
+            alert("Please set a profile picture in 'My Profile' before using the try-on feature.");
+            setIsProfileModalOpen(true);
+            return;
+        }
+
+        const newOutfit: Outfit = { ...currentOutfit, [product.category.toLowerCase()]: product };
+        setCurrentOutfit(newOutfit);
+        setGeneratedImage(null);
+        setIsGenerating(true);
+
         try {
-            const updatedUser = await authService.updateUserProfile(currentUser.id, { closet: updatedCloset });
+            const clothingImage = product.imageUrl;
+            const userImage = currentUser.user_image_url;
+            
+            const base64ClothingImage = await toBase64(clothingImage);
+            const base64UserImage = await toBase64(userImage);
+
+            if(!base64ClothingImage || !base64UserImage) {
+                 throw new Error("Could not convert images for AI processing.");
+            }
+
+            const resultImage = await geminiService.generateTryOnImage(base64UserImage, base64ClothingImage);
+            setGeneratedImage(resultImage);
+
+        } catch (error) {
+            console.error("Error generating try-on image:", error);
+            alert("Sorry, the virtual try-on failed. Please try again.");
+        } finally {
+            setIsGenerating(false);
+        }
+    }, [currentUser, currentOutfit]);
+
+    const toBase64 = (url: string) =>
+        fetch(url)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`Failed to fetch image: ${response.statusText}`);
+                }
+                return response.blob();
+            })
+            .then(blob => new Promise<string>((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
+                reader.onerror = reject;
+                reader.readAsDataURL(blob);
+            }));
+
+    const handleSaveProfile = async (profileData: UserProfile) => {
+        if (!currentUser) return;
+        try {
+            const updatedUser = await authService.updateUserProfile(currentUser.id, profileData);
             setCurrentUser(updatedUser);
-            setUploadModalOpen(false);
-            setSelectedCategory('My Closet');
-        } catch(error) {
-            console.error("Error adding to closet:", error);
-            alert("Could not add item to your closet.");
+        } catch (error) {
+            console.error("Failed to update profile", error);
         }
     };
-    reader.onerror = () => {
-      alert("Sorry, there was an error reading that file.");
-    }
-    reader.readAsDataURL(file);
-  }, [currentUser]);
-
-  const handleAddItemFromStore = useCallback(async (product: Product) => {
-    if (!currentUser) {
-      alert("Please log in to add items to your closet.");
-      setLoginModalOpen(true);
-      return;
-    }
     
-    const newItemInCloset: Product = {
-      ...product,
-      id: product.id + Math.random(),
-      isCustom: true,
-      styleKeywords: [...product.styleKeywords, 'imported'],
+    const handleLogout = () => {
+        authService.logout();
+        setCurrentUser(null);
+        setClosetProducts([]);
+        setCurrentOutfit({});
+        setGeneratedImage(null);
     };
+
+    const handleAddItemToCloset = async (product: Product) => {
+        if (!currentUser) return;
+        // Avoid duplicates
+        if (closetProducts.some(p => p.id === product.id)) return;
+        const newCloset = [...closetProducts, product];
+        setClosetProducts(newCloset);
+        await authService.updateUserProfile(currentUser.id, { closet: newCloset });
+    };
+
+    const handleUploadClothing = async (file: File, category: ProductCategory, name: string) => {
+       const reader = new FileReader();
+       reader.onloadend = async () => {
+           const newProduct: Product = {
+               id: Date.now(), // Simulate a unique ID
+               name: name,
+               price: 0, // Not applicable for user uploads
+               imageUrl: reader.result as string,
+               category: category,
+               styleKeywords: [category.toLowerCase()],
+           };
+           await handleAddItemToCloset(newProduct);
+       };
+       reader.readAsDataURL(file);
+    };
+
+    const displayedProducts = selectedCategory === 'My Closet' ? closetProducts : 
+                              selectedCategory === 'All' ? allProducts :
+                              allProducts.filter(p => p.category === selectedCategory);
     
-    const updatedCloset = [newItemInCloset, ...currentUser.closet];
-    
-    try {
-        const updatedUser = await authService.updateUserProfile(currentUser.id, { closet: updatedCloset });
-        setCurrentUser(updatedUser);
-    } catch(error) {
-        console.error("Error adding item from store:", error);
-        alert("Failed to add item to your closet.");
+    const allCategories = ['Tops', 'Bottoms', 'Outerwear'] as ProductCategory[];
+
+    if (isAuthLoading) {
+        return <div className="h-screen w-screen flex items-center justify-center bg-gray-100"><p>Loading Stylist...</p></div>;
     }
 
-  }, [currentUser]);
+    return (
+        <div className="min-h-screen bg-gray-100 flex flex-col">
+            <Header
+                currentUser={currentUser}
+                onProfileClick={() => setIsProfileModalOpen(true)}
+                onAssistantClick={() => setIsAssistantOpen(true)}
+                onLoginClick={() => setIsLoginModalOpen(true)}
+                onSignUpClick={() => setIsSignUpModalOpen(true)}
+                onLogoutClick={handleLogout}
+            />
+            <main className="flex-grow container mx-auto p-4 lg:p-6">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+                    <div className="lg:col-span-1 lg:sticky lg:top-20">
+                        <VirtualTryOn
+                           outfit={currentOutfit}
+                           userImage={currentUser?.user_image_url || null}
+                           onClearOutfit={() => { setCurrentOutfit({}); setGeneratedImage(null); }}
+                           isGenerating={isGenerating}
+                           generatedImage={generatedImage}
+                           isLoggedIn={!!currentUser}
+                        />
+                    </div>
+                    <div className="lg:col-span-2">
+                        <ProductGrid
+                            products={displayedProducts}
+                            categories={currentUser ? ['My Closet', ...allCategories] : allCategories}
+                            selectedCategory={selectedCategory}
+                            onSelectCategory={setSelectedCategory}
+                            onTryOn={handleTryOn}
+                            onViewDetails={(p) => { setSelectedProduct(p); setIsDetailModalOpen(true); }}
+                            isLoading={isLoadingProducts}
+                            error={productError}
+                            onOpenUploadModal={() => setIsUploadModalOpen(true)}
+                            onOpenBrowseStoresModal={() => setIsBrowseStoresModalOpen(true)}
+                            isLoggedIn={!!currentUser}
+                        />
+                    </div>
+                </div>
+            </main>
 
-
-  const handleTryOn = useCallback(async (product: Product) => {
-    if (!currentUser) {
-        alert("Please log in to use the Virtual Try-On.");
-        setLoginModalOpen(true);
-        return;
-    }
-    if (!currentUser.user_image_url) {
-        alert("Please upload a photo in 'My Profile' before trying on clothes.");
-        setProfileModalOpen(true);
-        return;
-    }
-    
-    setIsGeneratingTryOn(true);
-    try {
-        const baseImage = tryOnResultImage || currentUser.user_image_url;
-        const base64Image = baseImage.split(',')[1];
-
-        const newImage = await generateTryOnImage(base64Image, product);
-        
-        setTryOnResultImage(newImage);
-        
-        setOutfit(prevOutfit => ({
-            ...prevOutfit,
-            [product.category.toLowerCase()]: product,
-        }));
-    } catch (e) {
-        const errorMessage = e instanceof Error ? e.message : "An unknown error occurred.";
-        alert(`Error: ${errorMessage}`);
-    } finally {
-        setIsGeneratingTryOn(false);
-    }
-  }, [currentUser, tryOnResultImage]);
-
-  const handleClearOutfit = useCallback(() => {
-    setOutfit({ top: null, bottom: null, outerwear: null });
-    setTryOnResultImage(null);
-  }, []);
-
-  const storeProducts = products.filter(p => !p.isCustom);
-  const allAvailableProducts = [...storeProducts, ...(currentUser?.closet ?? [])];
-
-  const filteredProducts = selectedCategory === 'All'
-    ? storeProducts
-    : selectedCategory === 'My Closet'
-    ? currentUser?.closet ?? []
-    : storeProducts.filter(p => p.category === selectedCategory);
-    
-  const categoriesToShow: (ProductCategory | 'My Closet')[] = currentUser ? [...CATEGORIES, 'My Closet'] : [...CATEGORIES];
-
-  const userProfileForModals: UserProfile | undefined = currentUser ? {
-      name: currentUser.name,
-      height: currentUser.height,
-      weight: currentUser.weight,
-      chest: currentUser.chest,
-      waist: currentUser.waist,
-      hips: currentUser.hips,
-      userImage: currentUser.user_image_url,
-  } : undefined;
-
-  return (
-    <div className="min-h-screen bg-gray-100 font-sans">
-      <Header
-        currentUser={currentUser}
-        onProfileClick={() => setProfileModalOpen(true)}
-        onAssistantClick={() => setAssistantOpen(true)}
-        onLoginClick={() => setLoginModalOpen(true)}
-        onSignUpClick={() => setSignUpModalOpen(true)}
-        onLogoutClick={handleLogout}
-      />
-      <main className="flex flex-col lg:flex-row p-4 lg:p-6 gap-6 max-w-screen-2xl mx-auto">
-        <div className="w-full lg:w-3/5 xl:w-2/3 order-2 lg:order-1">
-          <ProductGrid
-            products={filteredProducts}
-            categories={categoriesToShow}
-            selectedCategory={selectedCategory}
-            onSelectCategory={setSelectedCategory}
-            onTryOn={handleTryOn}
-            onViewDetails={setSelectedProduct}
-            isLoading={isLoading}
-            error={error}
-            onOpenUploadModal={() => setUploadModalOpen(true)}
-            onOpenBrowseStoresModal={() => setBrowseStoresModalOpen(true)}
-            isLoggedIn={!!currentUser}
-          />
+            {/* --- MODALS --- */}
+            {isLoginModalOpen && (
+                <LoginModal
+                    isOpen={isLoginModalOpen}
+                    onClose={() => setIsLoginModalOpen(false)}
+                    onLoginSuccess={() => setIsLoginModalOpen(false)}
+                    onSwitchToSignUp={() => { setIsLoginModalOpen(false); setIsSignUpModalOpen(true); }}
+                />
+            )}
+            {isSignUpModalOpen && (
+                <SignUpModal
+                    isOpen={isSignUpModalOpen}
+                    onClose={() => setIsSignUpModalOpen(false)}
+                    onSignUpSuccess={() => { /* User confirms via email */ }}
+                    onSwitchToLogin={() => { setIsSignUpModalOpen(false); setIsLoginModalOpen(true); }}
+                />
+            )}
+            {isProfileModalOpen && currentUser && (
+                <UserProfileModal
+                    profile={{...currentUser, userImage: currentUser.user_image_url}}
+                    onSave={handleSaveProfile}
+                    onClose={() => setIsProfileModalOpen(false)}
+                />
+            )}
+            {isDetailModalOpen && selectedProduct && (
+                 <ProductDetailModal
+                    product={selectedProduct}
+                    userProfile={currentUser || undefined}
+                    onClose={() => setIsDetailModalOpen(false)}
+                    onTryOn={handleTryOn}
+                 />
+            )}
+            {isAssistantOpen && (
+                <FashionAssistant 
+                    isOpen={isAssistantOpen}
+                    onClose={() => setIsAssistantOpen(false)}
+                    userProfile={currentUser || undefined}
+                    products={allProducts}
+                    isLoggedIn={!!currentUser}
+                />
+            )}
+            {isUploadModalOpen && (
+                <UploadClothingModal 
+                    isOpen={isUploadModalOpen}
+                    onClose={() => setIsUploadModalOpen(false)}
+                    onUpload={handleUploadClothing}
+                />
+            )}
+             {isBrowseStoresModalOpen && (
+                <BrowseStoresModal 
+                    isOpen={isBrowseStoresModalOpen}
+                    onClose={() => setIsBrowseStoresModalOpen(false)}
+                    onAddItem={handleAddItemToCloset}
+                    allProducts={allProducts}
+                    isLoading={isLoadingProducts}
+                    isLoggedIn={!!currentUser}
+                />
+            )}
         </div>
-        <div className="w-full lg:w-2/5 xl:w-1/3 order-1 lg:order-2 lg:sticky lg:top-24 h-[500px] lg:h-auto">
-          <VirtualTryOn 
-            outfit={outfit} 
-            userImage={currentUser?.user_image_url ?? null} 
-            onClearOutfit={handleClearOutfit}
-            isGenerating={isGeneratingTryOn}
-            generatedImage={tryOnResultImage}
-            isLoggedIn={!!currentUser}
-          />
-        </div>
-      </main>
-
-      {isProfileModalOpen && currentUser && (
-        <UserProfileModal
-          profile={userProfileForModals!}
-          onSave={handleSaveProfile}
-          onClose={() => setProfileModalOpen(false)}
-        />
-      )}
-
-      {selectedProduct && (
-        <ProductDetailModal
-          product={selectedProduct}
-          userProfile={userProfileForModals}
-          onClose={() => setSelectedProduct(null)}
-          onTryOn={handleTryOn}
-        />
-      )}
-
-      {isUploadModalOpen && (
-        <UploadClothingModal 
-            isOpen={isUploadModalOpen}
-            onClose={() => setUploadModalOpen(false)}
-            onUpload={handleAddCustomProduct}
-        />
-      )}
-      
-      {isBrowseStoresModalOpen && (
-        <BrowseStoresModal 
-            isOpen={isBrowseStoresModalOpen}
-            onClose={() => setBrowseStoresModalOpen(false)}
-            onAddItem={handleAddItemFromStore}
-            allProducts={storeProducts}
-            isLoading={isLoading}
-            isLoggedIn={!!currentUser}
-        />
-      )}
-
-      {isLoginModalOpen && (
-        <LoginModal
-          isOpen={isLoginModalOpen}
-          onClose={() => setLoginModalOpen(false)}
-          onLoginSuccess={() => setLoginModalOpen(false)}
-          onSwitchToSignUp={() => { setLoginModalOpen(false); setSignUpModalOpen(true); }}
-        />
-      )}
-
-      {isSignUpModalOpen && (
-        <SignUpModal
-          isOpen={isSignUpModalOpen}
-          onClose={() => setSignUpModalOpen(false)}
-          onSignUpSuccess={() => setSignUpModalOpen(false)}
-          onSwitchToLogin={() => { setSignUpModalOpen(false); setLoginModalOpen(true); }}
-        />
-      )}
-      
-      <FashionAssistant
-        isOpen={isAssistantOpen}
-        onClose={() => setAssistantOpen(false)}
-        userProfile={userProfileForModals}
-        products={allAvailableProducts}
-        isLoggedIn={!!currentUser}
-      />
-    </div>
-  );
+    );
 };
 
 export default App;
